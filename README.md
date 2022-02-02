@@ -1,6 +1,8 @@
 # Configuring OpenLdap container to support any structure of corporate LDAP server
 
-This instruction has been prepared in 2019 for Kubernetes installation of NOI. But the approach of configuring OpenLdap might be applicable for NOI on OCP. Upon request, I'm sharing it with Business Partner, but the instruction is publicly available and can be used by anyone with no limitations.
+This instruction has been prepared in 2019 for Kubernetes installation of NOI. But the approach of configuring OpenLdap might be applicable for NOI on OCP. Upon request, I'm sharing it with Business Partner.
+
+The instruction is publicly available and can be used by anyone with no limitations.
 
 There is a requirement for NOI v1.6.0 to have certain LDAP structure at the corporate LDAP server: [Creating users on an external LDAP server](https://www.ibm.com/support/knowledgecenter/SSTPTP_1.6.0/com.ibm.netcool_ops.doc/soc/admin/reference/managing_users_using_an_external_ldap_server.html). Following the documentation we need to have groups in `ou=groups,LDAP_SUFFIX` and users in `ou=users,LDAP_SUFFIX` as well as have administrative users like "impactadmin" or "unityadmin" exactly named. Some customers are not ready of the approach and request to have administrative users placed in another LDAP domain or even different LDAP domains and named with their style. Also, they're not ready to change their domain structure because of security automations which already configured for current domain trees.
 
