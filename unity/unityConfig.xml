@@ -1,0 +1,26 @@
+<server>
+  <application type="war" id="Unity" name="Unity"
+             location="${server.config.dir}/apps/Unity.war">
+    <application-bnd>
+       <security-role name="UnityUser">
+           <group name="UnityUsers" />
+           <group name="UnityAdmins" />
+           <group name="icpadmins" />
+           <group name="icpusers" />
+           <group name="NOI-Admins" />
+           <group name="NOI-Users" />
+       </security-role>
+       <security-role name="UnityAdmin">
+           <group name="UnityAdmins" />
+           <group name="icpadmins" />
+           <group name="NOI-Admins" />
+       </security-role>
+    </application-bnd>
+  </application>
+
+  <oauth-roles>
+    <authenticated>
+      <special-subject type="ALL_AUTHENTICATED_USERS" />
+    </authenticated>
+  </oauth-roles>
+</server>

@@ -1,0 +1,220 @@
+#!/bin/bash
+#####################################################################################
+#                                                                                   #
+#  Script to start the server and wait.                                             #
+#                                                                                   #
+#  Usage : start_server                                                             #
+#                                                                                   #
+#####################################################################################
+
+if [ "$LICENSE" != "accept" ]; then
+  echo "Set environment variable LICENSE=accept to indicate acceptance of license terms and conditions."
+  echo "License agreements and information can be viewed on Passport Advantage."
+  exit 1
+fi
+
+SERVER_NAME=ImpactUI
+
+IMPACT=impactcore
+NAMESERVER_PORT=30900
+IMPACTUI_HOME=/opt/IBM/tivoli/impact
+
+if [ -z "$LDAP_SERVICE_NAME" ]; then export LDAP_SERVICE_NAME="ldapservice"; fi
+if [ -z "$LDAP_BIND_DN" ]; then export LDAP_BIND_DN="cn=admin,dc=mycluster,dc=icp"; fi
+if [ -z "$LDAP_BASE_DN" ]; then export LDAP_BASE_DN="dc=mycluster,dc=icp"; fi
+if [ -z "$LDAP_BIND_PWD" ]; then export LDAP_BIND_PWD=admin; fi
+if [ -z "$SSO_DOMAIN" ]; then export SSO_DOMAIN="mycluster.icp"; fi
+if [ -z "$LTPA_KEY_FILE" ]; then export LTPA_KEY_FILE="dash_ltpa.key"; fi
+if [ -z "$LTPA_KEY_PASSWORD" ]; then export LTPA_KEY_PASSWORD="netcool"; fi
+if [ -z "$IMPACT_ADMIN_PASSWORD" ]; then export IMPACT_ADMIN_PASSWORD="netcool"; fi
+
+
+
+function updateEtcHosts (){
+
+  # Suppose release name is bald monkey
+  # IMPACT_GUI_SERVICE_NAME=bald-monkey-impactgui
+  # This env variable will give us the ip address
+  # BALD_MONKEY_IMPACTGUI_SERVICE_HOST=10.0.0.166
+  # So we transform bald-monkey-impactgui to BALD_MONKEY_IMPACTGUI
+  # and get the value of BALD_MONKEY_IMPACTGUI_SERVICE_HOST
+  UPPERCASE_NAME=`echo $IMPACT_GUI_SERVICE_NAME | tr [a-z] [A-Z] | sed s/-/_/g `
+  HOST_VAR=${UPPERCASE_NAME}_SERVICE_HOST
+  IMPACT_GUI_SERVICE_IP=`echo ${!HOST_VAR}`
+  if [ ! -z $IMPACT_GUI_SERVICE_IP ]
+  then
+    grep  $IMPACT_GUI_SERVICE_IP  /etc/hosts 2>&1 >> /dev/null
+    if [ $? -ne 0 ]
+    then
+      echo adding $IMPACT_GUI_SERVICE_IP $EXTERNAL_HOSTNAME to  /etc/hosts
+      sudo su - -c "echo $IMPACT_GUI_SERVICE_IP $EXTERNAL_HOSTNAME >> /etc/hosts"
+    fi
+  fi
+}
+function verify_passwords (){
+  export PATH=/opt/IBM/tivoli/impact/sdk/jre/bin/:$PATH
+  /home/netcool/verifypass/verifyldappass.sh
+  if [ $? -ne 0 ]
+  then
+   exit -1
+  fi
+}
+start_server()
+{
+
+
+  echo "Starting server ..................."
+  $IMPACTUI_HOME/bin/startGUIServer.sh $SERVER_NAME
+}
+
+stop_server()
+{
+  echo "Stopping server ..................."
+  kill -s INT $PID
+}
+
+
+move_dir()
+{
+  if [ ! -z $1 ] && [ ! -z $IMPACTUI_HOME ] && [  -d  $IMPACTUI_HOME ]
+  then
+    rm -rf /space/.tmpcpy$1
+    if [ ! -d /space/$1 ]
+    then
+      # Copy is saver than move # This method can be killed and it can run again
+      echo cp -r $IMPACTUI_HOME/$1 /space/.tmpcpy$1
+      cp -r $IMPACTUI_HOME/$1 /space/.tmpcpy$1
+      echo mv /space/.tmpcpy$1 /space/$1
+      mv /space/.tmpcpy$1 /space/$1
+    fi
+    rm -rf $IMPACTUI_HOME/$1
+    ln -s /space/$1 $IMPACTUI_HOME/$1
+  fi
+}
+
+prepare_data()
+{
+    move_dir db
+    move_dir uiproviderconfig
+    move_dir opview
+}
+
+
+configure_ldap()
+{
+  # We dont want to see failures
+  sed -i "s/name=.failLDAPConnect./name=\"failmenotLDAPConnect\"/"   $IMPACTUI_HOME/install/security/cfg_scripts/confAuth4LDAP.xml
+
+  sed -i "s/LDAPHost=.*/LDAPHost=$LDAP_SERVICE_NAME/g" $IMPACTUI_HOME/install/security/impactdap.properties
+  sed -i "s/LDAPPort=.*/LDAPPort=$LDAP_SERVICE_PORT/g" $IMPACTUI_HOME/install/security/impactdap.properties
+  sed -i "s/LDAPBindDN=.*/LDAPBindDN=$LDAP_BIND_DN/g" $IMPACTUI_HOME/install/security/impactdap.properties
+  sed -i "s/LDAPBaseEntry=.*/LDAPBaseEntry=$LDAP_BASE_DN/g" $IMPACTUI_HOME/install/security/impactdap.properties
+  sed -i "s/LDAPBindPass=.*/LDAPBindPass=$LDAP_BIND_PWD/g" $IMPACTUI_HOME/install/security/impactdap.properties
+  $IMPACTUI_HOME/install/security/ICP_confAuth4LDAP.sh enable impactadmin $IMPACT_ADMIN_PASSWORD netcool true
+  $IMPACTUI_HOME/install/security/mapRoles.sh -add -group icpadmins -roles "impactAdminUser|impactFullAccessUser|impactOpViewUser|impactMWMAdminUser|impactMWMUser|impactSelectedOpViewUser|impactUIDataProviderUser|impactWebServiceUser|ConsoleUser|WriteAdmin|ReadAdmin|impactRBAUser"
+  $IMPACTUI_HOME/install/security/mapRoles.sh -add -group icpusers -roles "impactOpViewUser|impactMWMAdminUser|impactMWMUser|impactSelectedOpViewUser|impactUIDataProviderUser|impactWebServiceUser|ConsoleUser|WriteAdmin|ReadAdmin|impactRBAUser"
+  $IMPACTUI_HOME/install/security/mapRoles.sh -add -group NOI-Admins -roles "impactAdminUser|impactFullAccessUser|impactOpViewUser|impactMWMAdminUser|impactMWMUser|impactSelectedOpViewUser|impactUIDataProviderUser|impactWebServiceUser|ConsoleUser|WriteAdmin|ReadAdmin|impactRBAUser"
+  $IMPACTUI_HOME/install/security/mapRoles.sh -add -group NOI-Users -roles "impactOpViewUser|impactMWMAdminUser|impactMWMUser|impactSelectedOpViewUser|impactUIDataProviderUser|impactWebServiceUser|ConsoleUser|WriteAdmin|ReadAdmin|impactRBAUser"
+}
+import_ltpa_keys()
+{
+  cp /share/keys/$LTPA_KEY_FILE $IMPACTUI_HOME/wlp/usr/servers/ImpactUI/resources/security/ltpa.keys
+  echo "Importing LTPA keys from DASH into Impact for SSO"
+  $IMPACTUI_HOME/install/security/configImpactSSO.sh "defaultWIMFileBasedRealm" LtpaToken2 $SSO_DOMAIN $LTPA_KEY_PASSWORD netcool
+}
+wait_for_dash_ltpa_keys()
+{
+  echo "Waiting for DASH LTPA keys"
+  while [ ! -f /share/keys/$LTPA_KEY_FILE ] ; do
+    sleep 2
+    echo -n "."
+  done
+}
+update_properties()
+{
+  src=$1
+  dst=$2
+  if [[ -s $src ]] ; then
+    echo "Update $dst using $src..."
+    cat $src
+    while IFS= read -r line; do
+      # Ignore comments
+      if [[ "$line" =~ ^#+ ]]; then
+        continue
+      # Does the line look like k=v?
+      elif [[ "$line" =~ (.*)=(.*) ]]; then
+        k=${BASH_REMATCH[1]}
+        v=${BASH_REMATCH[2]}
+
+        # Does the key exist in the properties file?
+        grep --quiet "^$k=" $dst
+        if [[ $? -eq 0 ]]; then
+          # Replace value
+          sed --in-place "s/^$k=.*/$k=$v/g" $dst
+        else
+          # Append key=value
+          echo "$k=$v" >> $dst
+        fi
+      fi
+    done < $src
+  fi
+}
+
+trap "stop_server" TERM INT EXIT
+verify_passwords
+echo "Preparing image for startup..."
+prepare_data
+
+echo "Creating certificate...."
+#update_server
+
+echo "Post-install hostname changes..."
+export IMPACT_HOSTNAME=${IMPACT_GUI_SERVICE_NAME}
+/home/netcool/postinstall.sh
+$IMPACTUI_HOME/sdk/jre/bin/keytool -export -alias default -keystore $IMPACTUI_HOME/wlp/usr/servers/ImpactUI/resources/security/key.jks -file /share/impact.crt -storepass netcool
+
+# Add the server to ensure we can export Related Events
+echo -e "\nimpact.noi.export.hostname=${IMPACT_GUI_SERVICE_NAME}\n" >> $IMPACTUI_HOME/etc/server.props
+
+echo "Update properties files..."
+# impactgui.log4j.properties is not terminated by a newline.
+# Append one so update_properties can work correctly.
+echo -e "\n" >> $IMPACTUI_HOME/etc/impactgui.log4j.properties
+update_properties /space/impactgui.log4j.properties-update $IMPACTUI_HOME/etc/impactgui.log4j.properties
+echo -e "\n" >> $IMPACTUI_HOME/etc/server.props
+update_properties /space/server.props-update $IMPACTUI_HOME/etc/server.props
+echo "Configuring LDAP Authentication..."
+configure_ldap
+
+echo "Configuring SSO ..."
+wait_for_dash_ltpa_keys
+import_ltpa_keys
+echo "Starting Impact Server..."
+
+PID=$(ps -C java -o pid= | tr -d " ")
+if [ -z "$PID" ]
+then
+start_server || exit $?
+fi
+
+PID=$(ps -C java -o pid= | tr -d " ")
+echo "Post start SSO and LDAP configurations"
+$IMPACTUI_HOME/install/security/postStartLDAPSSO.sh LtpaToken2 impactadmin $IMPACT_ADMIN_PASSWORD
+
+tail -F   $IMPACTUI_HOME/logs/impactgui.log --pid $PID -n +0 &
+tail -F   $IMPACTUI_HOME/logs/impactgui-errors.log --pid $PID -n +0 >&2 &
+while [ -e "/proc/$PID" ]; do
+  sleep 5
+  updateEtcHosts
+  if [ -f  /share/keys/$LTPA_KEY_FILE ] && [ -f $IMPACTUI_HOME/wlp/usr/servers/ImpactUI/resources/security/ltpa.keys ]
+  then
+    diff -wq /share/keys/$LTPA_KEY_FILE $IMPACTUI_HOME/wlp/usr/servers/ImpactUI/resources/security/ltpa.keys
+    if [ $? -ne 0 ]
+    then
+       echo dash ltpa key has changed has changed
+       sleep 10
+       exit 0
+    fi
+  fi
+
+done

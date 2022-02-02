@@ -1,0 +1,13 @@
+apiVersion: v1
+data:
+  openldapgit-master-prefix: "https://raw.github.ibm.com/Oleg-Samoylov/OpenLdap/master"
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/instance: ops
+    app.kubernetes.io/managed-by: Tiller
+    app.kubernetes.io/name: openldap
+    helm.sh/chart: openldap
+    release: ops
+  name: ops-openldapgit-config
+  namespace: noi16

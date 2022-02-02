@@ -1,0 +1,87 @@
+dn: DEFAULT_LDAP_SUFFIX
+objectclass: dcObject
+objectclass: organization
+o: ibm
+dc: mycluster
+
+dn: cn=admin,DEFAULT_LDAP_SUFFIX
+objectclass: organizationalRole
+objectclass: simpleSecurityObject
+cn: admin
+userPassword:: e1NTSEF9L2sva20wd0FUM0RsN3lneTArUjhOeFpOeGxnMTJXc24K
+
+dn: ou=groups,DEFAULT_LDAP_SUFFIX
+objectClass: organizationalUnit
+objectClass: top
+ou: groups
+
+dn: ou=users,DEFAULT_LDAP_SUFFIX
+objectClass: organizationalUnit
+objectClass: top
+ou: users
+
+dn: uid=icpuser,ou=users,DEFAULT_LDAP_SUFFIX
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: ICP User
+uid: icpuser
+givenName: ICP User
+sn: icpuser
+userPassword:: e1NTSEF9NHpaaVB0UkhJN2pvaGdVODlsNG41ZGdNV3JFRXpEczMK
+
+dn: uid=icpadmin,ou=users,DEFAULT_LDAP_SUFFIX
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: ICP Admin
+uid: icpadmin
+givenName: ICP Admin
+sn: icpadmin
+userPassword:: e1NTSEF9NHpaaVB0UkhJN2pvaGdVODlsNG41ZGdNV3JFRXpEczMK
+
+dn: uid=unityadmin,ou=users,DEFAULT_LDAP_SUFFIX
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: Unity Admin
+uid: unityadmin
+givenName: Unity
+sn: unityadmin
+userPassword:: e1NTSEF9NHpaaVB0UkhJN2pvaGdVODlsNG41ZGdNV3JFRXpEczMK
+
+dn: uid=impactadmin,ou=users,DEFAULT_LDAP_SUFFIX
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: Impact Admin User
+uid: impactadmin
+givenName: Impact Admin User
+sn: impactadmin
+userPassword:: e1NTSEF9NHpaaVB0UkhJN2pvaGdVODlsNG41ZGdNV3JFRXpEczMK
+
+dn: cn=icpadmins,ou=groups,DEFAULT_LDAP_SUFFIX
+cn: icpadmins
+owner: uid=icpadmin,ou=users,DEFAULT_LDAP_SUFFIX
+description: ICP Admins group
+objectClass: groupOfNames
+member: uid=icpadmin,ou=users,DEFAULT_LDAP_SUFFIX
+
+dn: cn=icpusers,ou=groups,DEFAULT_LDAP_SUFFIX
+cn: icpusers
+owner: uid=icpuser,ou=users,DEFAULT_LDAP_SUFFIX
+description: ICP Users group
+objectClass: groupOfNames
+member: uid=icpuser,ou=users,DEFAULT_LDAP_SUFFIX
+member: uid=icpadmin,ou=users,DEFAULT_LDAP_SUFFIX
+
+dn: cn=unityAdmins,ou=groups,DEFAULT_LDAP_SUFFIX
+cn: unityAdmins
+owner: uid=unityadmin,ou=users,DEFAULT_LDAP_SUFFIX
+description: Unity Admins group
+objectClass: groupOfNames
+member: uid=unityadmin,ou=users,DEFAULT_LDAP_SUFFIX

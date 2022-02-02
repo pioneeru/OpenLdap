@@ -1,0 +1,155 @@
+#!/bin/bash
+
+if [ "$LICENSE" != "accept" ]; then
+    echo "Set environment variable LICENSE=accept to indicate acceptance of license terms and conditions."
+    echo "License agreements and information can be viewed on Passport Advantage."
+    exit 1
+fi
+
+start_server()
+{
+    echo "Starting LDAP server ..................."
+    /usr/local/libexec/slapd -F /usr/local/var/openldap-data/slapd.d -h "ldap:/// ldapi:///"
+}
+
+wait_for_server()
+{
+    while [ ! -f /usr/local/var/run/slapd.pid ]
+    do
+        echo "waiting for ldap server..."
+        sleep 1s
+    done
+}
+
+stop_server()
+{
+    echo "Stopping LDAP server ..................."
+    kill -INT `cat /usr/local/var/run/slapd.pid`
+}
+
+FIRST_TIME=FALSE
+# initialise_db()
+# {
+#     echo "Starting Initialisation!-------"
+#     if [ ! -d /space/openldap-data ] ; then
+
+#         echo "Initialising DB ..."
+#         sed -i "s/LDAP_BIND_PWD/$LDAP_BIND_PWD/g" $LDAP_DIR/slapd.conf
+#         echo "" | slapadd -n 0 -F /usr/local/var/openldap-data/slapd.d -f $LDAP_DIR/slapd.conf
+#         echo "$LDAP_BIND_PWD" | base64 > /usr/local/var/openldap-data/LDAP_BIND_PWD
+
+#         echo "Persisting DB..."
+#         cp -rf /usr/local/var/openldap-data /space
+#         rm -rf /usr/local/var/openldap-data
+#         FIRST_TIME=TRUE
+#     else
+#         echo "Directory /space/openldap-data exists, removing /usr/local/var/openldap-data!-------"
+#         #TODO check whether we really need to rm this
+#         rm -rf /usr/local/var/openldap-data
+#     fi
+#     echo "Creating link  /space/openldap-data /usr/local/var  -------"
+#     ln -s /space/openldap-data /usr/local/var
+# }
+
+
+initialise_db()
+{
+    rm -rf /usr/local/var/openldap-data/slapd.d/*
+    echo "Starting Initialisation!-------"
+
+    echo "Initialising DB ..."
+    sed -i "s/LDAP_BIND_PWD/$LDAP_BIND_PWD/g" $LDAP_DIR/custom_slapd.conf
+    echo "" | slapadd -n 0 -F /usr/local/var/openldap-data/slapd.d -f $LDAP_DIR/custom_slapd.conf
+    echo "$LDAP_BIND_PWD" | base64 > /usr/local/var/openldap-data/LDAP_BIND_PWD
+
+    FIRST_TIME=TRUE
+
+}
+
+
+
+add_default_users()
+{
+    if [ "$FIRST_TIME" = "TRUE" ]; then
+        echo "Adding default users..."
+        sed -i "s|DEFAULT_LDAP_SUFFIX|$LDAP_SUFFIX|g" $LDAP_DIR/custom_sso.ldif
+        ldapadd -c -x -w "$LDAP_BIND_PWD" -D "$LDAP_BIND_DN" -f $LDAP_DIR/custom_sso.ldif
+        echo "Default SSO users creation finished with rc:$?" 
+    fi
+}
+
+
+set_ldap_user_pwd()
+{
+    DN=$1
+    NEWPWD=$2
+    echo "Setting password for $1"
+    ldappasswd -h localhost -D "$LDAP_BIND_DN" -w "$LDAP_BIND_PWD" -s "$NEWPWD" "$DN"
+}
+
+set_user_pwd()
+{
+    if [ -f /space/openldap-data/LDAP_BIND_PWD ]; then
+        OLD_LDAP_BIND_PWD=`cat /space/openldap-data/LDAP_BIND_PWD | base64 --decode`
+    fi
+
+    OLD_LDAP_BIND_PWD=`cat /usr/local/var/openldap-data/LDAP_BIND_PWD | base64 --decode`
+    
+    if [ "$OLD_LDAP_BIND_PWD" != "$LDAP_BIND_PWD" ] ; then
+        echo "Changing default ROOT DN password for LDAP"
+        LDAP_BIND_PASS=$(slappasswd -h {SSHA} -s "$LDAP_BIND_PWD" )
+        ldapmodify -H ldapi:/// -x -D cn=admin,dc=mycluster,dc=icp -w "$OLD_LDAP_BIND_PWD" <<-EOF
+		dn: cn=admin,dc=mycluster,dc=icp
+		changetype: modify
+		replace: userPassword
+		userPassword: $LDAP_BIND_PASS
+		EOF
+        rc1=$?
+        # Change Config DIT
+        sudo /usr/local/bin/ldapmodify -Y EXTERNAL -H ldapi:/// <<-EOF
+		dn: olcDatabase={1}mdb,cn=config
+		changetype: modify
+		replace: olcRootPW
+		olcRootPW: $LDAP_BIND_PASS
+		EOF
+        rc2=$?
+        if [ $rc1 -eq 0 ] && [ $rc2 -eq 0 ]; then
+            echo "$LDAP_BIND_PWD" | base64 > /space/openldap-data/LDAP_BIND_PWD 
+        fi
+    fi
+
+    set_ldap_user_pwd $ICP_ADMIN_DN $ICP_ADMIN_PWD
+    set_ldap_user_pwd $ICP_USER_DN $ICP_USER_PWD
+    set_ldap_user_pwd $IMPACT_USER_DN $IMPACT_ADMIN_PWD 
+    set_ldap_user_pwd $UNITY_USER_DN $UNITY_ADMIN_PWD
+}
+
+export LDAP_DIR=/home/openldap
+
+if [ -z "$LDAP_BIND_DN" ]; then export LDAP_BIND_DN="cn=admin,dc=mycluster,dc=icp"; fi
+if [ -z "$LDAP_SUFFIX" ]; then export LDAP_SUFFIX="dc=mycluster,dc=icp"; fi
+if [ -z "$LDAP_BIND_PWD" ]; then export LDAP_BIND_PWD="admin"; fi
+if [ -z "$ICP_ADMIN_PWD" ]; then export ICP_ADMIN_PWD="netcool"; fi
+if [ -z "$ICP_USER_PWD" ]; then export ICP_USER_PWD="netcool"; fi
+if [ -z "$IMPACT_ADMIN_PWD" ]; then export IMPACT_ADMIN_PWD="netcool"; fi
+if [ -z "$UNITY_ADMIN_PWD" ]; then export UNITY_ADMIN_PWD="netcool"; fi
+ICP_ADMIN_DN="uid=icpadmin,ou=users,${LDAP_SUFFIX}"
+ICP_USER_DN="uid=icpuser,ou=users,${LDAP_SUFFIX}"
+IMPACT_USER_DN="uid=impactadmin,ou=users,${LDAP_SUFFIX}"
+UNITY_USER_DN="uid=unityadmin,ou=users,${LDAP_SUFFIX}"
+
+initialise_db
+
+trap "stop_server" TERM INT EXIT
+start_server || exit $?
+
+wait_for_server
+
+add_default_users
+set_user_pwd
+
+ PID=$(ps -C slapd -o pid= | tr -d " ")
+
+ while [ -e "/proc/$PID" ]; do
+    sleep 1
+ done
