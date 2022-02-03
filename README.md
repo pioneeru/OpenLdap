@@ -69,7 +69,7 @@ We use ICP 3.2.0 with NOI 1.6.0, where namespace is `noi16` and release is `ops`
 4. Create a Secret using generated Token with the command below:
 
     ```bash
-    create secret generic ops-openldap-git-secret --from-literal=GIT_PROJECT_OPENLDAP_AUTH_TOKEN=16aab13f80e10326013c30ad79777eb432b91827 --namespace noi16
+    create secret generic ops-openldap-git-secret --from-literal=GIT_PROJECT_OPENLDAP_AUTH_TOKEN=16aab13f...432b91827 --namespace noi16
     ```
 
     Later, we will use the secret in the following StatefulSets:
